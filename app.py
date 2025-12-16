@@ -4,10 +4,9 @@ import openai
 
 st.title("Campus Oracle - Your AI College Assistant")
 
-# Read OpenAI API key from Streamlit secrets or ask locally
-openai.api_key = st.secrets.get("OPENAI_API_KEY") or st.text_input(
-    "Enter your OpenAI API Key", type="password"
-)
+# Get OpenAI API key safely from Streamlit secrets or prompt
+openai.api_key = st.secrets.get("OPENAI_API_KEY") or st.text_input("Enter your OpenAI API Key", type="password")
+
 
 # Upload college materials
 uploaded_files = st.file_uploader(
@@ -26,7 +25,7 @@ st.write("App is running")
 def extract_text_from_files(files):
     """
     Extract text from uploaded files.
-    Currently reads UTF-8 text or returns filename if unreadable.
+    Reads UTF-8 text or returns a placeholder if unreadable.
     """
     texts = []
     for f in files:
@@ -39,7 +38,7 @@ def extract_text_from_files(files):
 
 def generate_ai_response(college_name, question, context):
     """
-    Generate AI response using OpenAI ChatCompletion API.
+    Generate AI response using OpenAI ChatCompletion API (>=1.0.0).
     """
     prompt = f"""
 You are an expert AI assistant for {college_name}.
@@ -51,22 +50,20 @@ Question: {question}
 Please provide a clear, step-by-step study roadmap or answer.
 """
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=500
-        )   
-        return response.choices[0].message.content.strip()
+        )
+        # Access the content properly
+        return response.choices[0].message["content"].strip()
     except Exception as e:
         return f"Error generating AI response: {e}"
 
 if st.button("Generate AI Answer"):
-    if uploaded_files:
-        context = extract_text_from_files(uploaded_files)
-    else:
-        context = "No files uploaded, answer will be general."
-
+    context = extract_text_from_files(uploaded_files) if uploaded_files else "No files uploaded, answer will be general."
+    
     with st.spinner("Thinking..."):
         answer = generate_ai_response("MyCollege", question, context)
 
