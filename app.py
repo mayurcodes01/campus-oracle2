@@ -1,13 +1,11 @@
-# app.py
 import streamlit as st
-import requests
+import http.client
+import json
 
 st.title("Campus Oracle - Your AI College Assistant")
 
-# Get RapidAPI key from secrets or user input
-RAPIDAPI_KEY = st.secrets.get("RAPIDAPI_KEY") or st.text_input(
-    "Enter your RapidAPI Key", type="password"
-)
+# Get RapidAPI Key safely
+RAPIDAPI_KEY = st.text_input("Enter your RapidAPI Key", type="password")
 
 # Upload college materials
 uploaded_files = st.file_uploader(
@@ -27,49 +25,42 @@ def extract_text_from_files(files):
     texts = []
     for f in files:
         try:
-            content = f.read().decode("utf-8")
-            texts.append(content)
+            texts.append(f.read().decode("utf-8"))
         except:
             texts.append(f"Could not read {f.name}, placeholder used.")
     return "\n".join(texts) if texts else "No content extracted"
 
-def generate_ai_response_rapidapi(college_name, question, context):
+def generate_ai_response_rapidapi(question, context):
     if not RAPIDAPI_KEY:
-        return "RapidAPI key not provided."
+        return "Please provide a RapidAPI key."
 
-    url = "https://hf.space/embed/tiiuae/falcon-7b-instruct/api/predict/"
+    conn = http.client.HTTPSConnection("copilot5.p.rapidapi.com")
 
-    payload = {
-        "data": [
-            f"You are an expert AI assistant for {college_name}.\n"
-            f"Context: {context}\n"
-            f"Question: {question}\n"
-            "Provide a clear, step-by-step study roadmap or answer."
-        ]
-    }
+    payload = json.dumps({
+        "message": f"Context: {context}\nQuestion: {question}",
+        "conversation_id": None,
+        "mode": "CHAT",
+        "markdown": True
+    })
 
     headers = {
-        "Content-Type": "application/json",
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": "hf.space"
+        'x-rapidapi-key': RAPIDAPI_KEY,
+        'x-rapidapi-host': "copilot5.p.rapidapi.com",
+        'Content-Type': "application/json"
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
-        # Check status code
-        if response.status_code != 200:
-            return f"API returned status {response.status_code}: {response.text}"
-        result = response.json()
-        # Hugging Face returns predictions in "data"
-        return result.get("data", ["No response"])[0]
+        conn.request("POST", "/copilot", payload, headers)
+        res = conn.getresponse()
+        data = res.read()
+        response_json = json.loads(data)
+        return response_json.get("message", "No response from API")
     except Exception as e:
         return f"Error generating AI response: {e}"
 
 if st.button("Generate AI Answer"):
     context = extract_text_from_files(uploaded_files) if uploaded_files else "No files uploaded, answer will be general."
-
     with st.spinner("Thinking..."):
-        answer = generate_ai_response_rapidapi("MyCollege", question, context)
-
+        answer = generate_ai_response_rapidapi(question, context)
     st.success("Response generated")
     st.write(answer)
