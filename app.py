@@ -34,9 +34,6 @@ def extract_text_from_files(files):
     return "\n".join(texts) if texts else "No content extracted"
 
 def generate_ai_response_rapidapi(college_name, question, context):
-    """
-    Generate AI response using RapidAPI Hugging Face endpoint.
-    """
     if not RAPIDAPI_KEY:
         return "RapidAPI key not provided."
 
@@ -52,15 +49,18 @@ def generate_ai_response_rapidapi(college_name, question, context):
     }
 
     headers = {
-        "content-type": "application/json",
+        "Content-Type": "application/json",
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "hf.space"
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=60)
+        # Check status code
+        if response.status_code != 200:
+            return f"API returned status {response.status_code}: {response.text}"
         result = response.json()
-        # Hugging Face API returns predictions as a list
+        # Hugging Face returns predictions in "data"
         return result.get("data", ["No response"])[0]
     except Exception as e:
         return f"Error generating AI response: {e}"
