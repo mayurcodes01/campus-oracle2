@@ -1,12 +1,13 @@
 # app.py
 import streamlit as st
-import openai
+import requests
 
 st.title("Campus Oracle - Your AI College Assistant")
 
-# Get OpenAI API key safely from Streamlit secrets or prompt
-openai.api_key = st.secrets.get("OPENAI_API_KEY") or st.text_input("Enter your OpenAI API Key", type="password")
-
+# Get RapidAPI key from secrets or user input
+RAPIDAPI_KEY = st.secrets.get("RAPIDAPI_KEY") or st.text_input(
+    "Enter your RapidAPI Key", type="password"
+)
 
 # Upload college materials
 uploaded_files = st.file_uploader(
@@ -23,10 +24,6 @@ question = st.text_input(
 st.write("App is running")
 
 def extract_text_from_files(files):
-    """
-    Extract text from uploaded files.
-    Reads UTF-8 text or returns a placeholder if unreadable.
-    """
     texts = []
     for f in files:
         try:
@@ -36,36 +33,43 @@ def extract_text_from_files(files):
             texts.append(f"Could not read {f.name}, placeholder used.")
     return "\n".join(texts) if texts else "No content extracted"
 
-def generate_ai_response(college_name, question, context):
+def generate_ai_response_rapidapi(college_name, question, context):
     """
-    Generate AI response using OpenAI ChatCompletion API (>=1.0.0).
+    Generate AI response using RapidAPI Hugging Face endpoint.
     """
-    prompt = f"""
-You are an expert AI assistant for {college_name}.
-Here is context from uploaded materials:
-{context}
+    if not RAPIDAPI_KEY:
+        return "RapidAPI key not provided."
 
-Question: {question}
+    url = "https://hf.space/embed/tiiuae/falcon-7b-instruct/api/predict/"
 
-Please provide a clear, step-by-step study roadmap or answer.
-"""
+    payload = {
+        "data": [
+            f"You are an expert AI assistant for {college_name}.\n"
+            f"Context: {context}\n"
+            f"Question: {question}\n"
+            "Provide a clear, step-by-step study roadmap or answer."
+        ]
+    }
+
+    headers = {
+        "content-type": "application/json",
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
+        "X-RapidAPI-Host": "hf.space"
+    }
+
     try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=500
-        )
-        # Access the content properly
-        return response.choices[0].message["content"].strip()
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        result = response.json()
+        # Hugging Face API returns predictions as a list
+        return result.get("data", ["No response"])[0]
     except Exception as e:
         return f"Error generating AI response: {e}"
 
 if st.button("Generate AI Answer"):
     context = extract_text_from_files(uploaded_files) if uploaded_files else "No files uploaded, answer will be general."
-    
+
     with st.spinner("Thinking..."):
-        answer = generate_ai_response("MyCollege", question, context)
+        answer = generate_ai_response_rapidapi("MyCollege", question, context)
 
     st.success("Response generated")
     st.write(answer)
